@@ -1,11 +1,20 @@
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Todo
 from .serializers import TodoSerializer
+
+
+class TodoPagination(CursorPagination):
+    """Cursor pagination for todos."""
+
+    page_size = 20
+    ordering = "-created_at"
+    cursor_query_param = "cursor"
 
 
 class ApiResponseMixin:
@@ -23,6 +32,7 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
 
     permission_classes = [IsAuthenticated]
     serializer_class = TodoSerializer
+    pagination_class = TodoPagination
 
     def get_queryset(self):
         queryset = Todo.objects.filter(user=self.request.user)
@@ -33,8 +43,18 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     @extend_schema(summary="List todos", description="Get all todos for the authenticated user. Pass ?include_deleted=true to include soft-deleted todos.")
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return self.api_response(serializer.data)
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        paginated = self.get_paginated_response(serializer.data)
+        return Response(
+            {
+                "data": serializer.data,
+                "next": paginated.data.get("next"),
+                "previous": paginated.data.get("previous"),
+                "statusCode": 200,
+                "timestamp": timezone.now().isoformat(),
+            },
+        )
 
     @extend_schema(summary="Create todo", description="Create a new todo for the authenticated user.")
     def create(self, request, *args, **kwargs):
