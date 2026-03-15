@@ -32,5 +32,6 @@ django-ratelimit==4.1.0
 
 # API Documentation
 drf-spectacular==0.27.1
+# Google Auth
 google-auth==2.27.0
-google-auth==2.27.0
+requests==2.31.0
