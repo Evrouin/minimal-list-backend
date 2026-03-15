@@ -1,4 +1,6 @@
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.pagination import CursorPagination
@@ -27,6 +29,7 @@ class ApiResponseMixin:
         )
 
 
+@method_decorator(ratelimit(key="user", rate="60/h", method="POST"), name="dispatch")
 class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     """List and create todos for the authenticated user."""
 
@@ -56,8 +59,15 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
             },
         )
 
+    MAX_TODOS_PER_USER = 100
+
     @extend_schema(summary="Create todo", description="Create a new todo for the authenticated user.")
     def create(self, request, *args, **kwargs):
+        if Todo.objects.filter(user=request.user, deleted=False).count() >= self.MAX_TODOS_PER_USER:
+            return self.api_response(
+                {"error": f"Todo limit reached ({self.MAX_TODOS_PER_USER}). Delete some todos first."},
+                status.HTTP_400_BAD_REQUEST,
+            )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
