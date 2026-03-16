@@ -41,8 +41,9 @@ class RegisterView(generics.CreateAPIView):
         responses={201: UserSerializer},
     )
     def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        user = User.objects.get(email=response.data["email"])
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
 
         # Send verification email
         verification_url = f"{settings.FRONTEND_URL}/verify-email/{user.verification_token}"
@@ -57,7 +58,7 @@ class RegisterView(generics.CreateAPIView):
         return Response(
             {
                 "message": "Registration successful. Please check your email to verify your account.",
-                "user": response.data,
+                "user": UserSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
         )
