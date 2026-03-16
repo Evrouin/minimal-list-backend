@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    "config.middleware.MaintenanceModeMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -153,6 +154,9 @@ FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
 # Rate limiting
 RATELIMIT_ENABLE = config("RATELIMIT_ENABLE", default=True, cast=bool)
+
+# Maintenance mode
+MAINTENANCE_MODE = config("MAINTENANCE_MODE", default=False, cast=bool)
 RATELIMIT_USE_CACHE = "default"
 
 LOGGING = {
