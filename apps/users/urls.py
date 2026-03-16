@@ -8,6 +8,7 @@ from .views import (
     UserProfileView,
     delete_account,
     google_login,
+    logout,
     password_reset_confirm,
     password_reset_request,
     verify_email,
@@ -18,6 +19,7 @@ urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("login/google/", google_login, name="google_login"),
+    path("logout/", logout, name="logout"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # Email verification
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
