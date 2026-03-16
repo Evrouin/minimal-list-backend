@@ -343,10 +343,23 @@ def google_login(request):
         )
 
         if not created:
+            updated_fields = []
             avatar_url = idinfo.get("picture", "")
             if avatar_url and user.avatar_url != avatar_url:
                 user.avatar_url = avatar_url
-                user.save(update_fields=["avatar_url"])
+                updated_fields.append("avatar_url")
+            if not user.is_verified:
+                user.is_verified = True
+                user.verification_token = ""
+                updated_fields.extend(["is_verified", "verification_token"])
+            if updated_fields:
+                user.save(update_fields=updated_fields)
+
+        if not user.is_active:
+            return Response(
+                {"error": "This account has been deactivated."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
