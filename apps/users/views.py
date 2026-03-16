@@ -131,7 +131,21 @@ class ChangePasswordView(generics.UpdateAPIView):
         user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        return Response({"message": "Password updated successfully."}, status=status.HTTP_200_OK)
+        # Blacklist all outstanding refresh tokens
+        OutstandingToken.objects.filter(user=user).delete()
+
+        # Issue new tokens
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "message": "Password updated successfully.",
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),  # type: ignore[attr-defined]
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @extend_schema(
