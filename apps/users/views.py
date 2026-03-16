@@ -257,15 +257,13 @@ def google_login(request):
             client_id = config("GOOGLE_CLIENT_ID")
             idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
         except ValueError:
-            import json
-            import urllib.request
+            import requests as http_requests
 
-            req = urllib.request.Request(
+            resp = http_requests.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
                 headers={"Authorization": f"Bearer {token}"},
             )
-            with urllib.request.urlopen(req) as resp:
-                idinfo = json.loads(resp.read().decode())
+            idinfo = resp.json()
 
         # Get user info from Google
         email = idinfo.get("email")
