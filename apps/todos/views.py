@@ -1,9 +1,11 @@
+from django.conf import settings
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.pagination import CursorPagination
+from rest_framework.decorators import api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -63,7 +65,7 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
 
     @extend_schema(summary="Create todo", description="Create a new todo for the authenticated user.")
     def create(self, request, *args, **kwargs):
-        if Todo.objects.filter(user=request.user, deleted=False).count() >= self.MAX_TODOS_PER_USER:
+        if not settings.DEBUG and Todo.objects.filter(user=request.user, deleted=False).count() >= self.MAX_TODOS_PER_USER:
             return self.api_response(
                 {"error": f"Todo limit reached ({self.MAX_TODOS_PER_USER}). Delete some todos first."},
                 status.HTTP_400_BAD_REQUEST,
@@ -114,3 +116,31 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
             instance.deleted = True
             instance.save()
         return self.api_response({"success": True})
+
+
+@extend_schema(summary="Bulk delete todos", description="Soft or permanent delete multiple todos by IDs.")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def bulk_delete_todos(request):
+    """Bulk delete todos. Soft-deletes active todos, permanently deletes already soft-deleted ones."""
+    ids = request.data.get("ids", [])
+    if not ids:
+        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    todos = Todo.objects.filter(id__in=ids, user=request.user)
+    permanent_ids = list(todos.filter(deleted=True).values_list("id", flat=True))
+    todos.filter(deleted=False).update(deleted=True)
+    Todo.objects.filter(id__in=permanent_ids).delete()
+    return Response({"success": True})
+
+
+@extend_schema(summary="Bulk pin/unpin todos", description="Pin or unpin multiple todos by IDs.")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def bulk_pin_todos(request):
+    """Bulk pin or unpin todos."""
+    ids = request.data.get("ids", [])
+    pinned = request.data.get("pinned", True)
+    if not ids:
+        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    Todo.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
+    return Response({"success": True})
