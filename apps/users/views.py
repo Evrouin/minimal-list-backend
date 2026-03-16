@@ -14,6 +14,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import PasswordResetToken
@@ -74,7 +75,14 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         description="Authenticate with email and password to receive access and refresh tokens.",
     )
     def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+        response = super().post(request, *args, **kwargs)
+        user = User.objects.get(email=request.data.get("email"))
+        if not user.is_verified:
+            return Response(
+                {"error": "Please verify your email before logging in."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return response
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
