@@ -372,6 +372,8 @@ def google_login(request):
                     "email": user.email,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
+                    "is_superuser": user.is_superuser,
+                    "avatar_url": user.avatar_url,
                 },
                 "tokens": {
                     "refresh": str(refresh),
