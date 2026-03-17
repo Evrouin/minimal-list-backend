@@ -4,11 +4,10 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from apps.todos.models import Todo
-from apps.todos.views import TodoPagination
 from apps.users.admin_serializers import AdminCreateUserSerializer, AdminTodoSerializer, AdminUserUpdateSerializer
 from apps.users.permissions import IsSuperUser
 from apps.users.serializers import UserSerializer
@@ -16,12 +15,12 @@ from apps.users.serializers import UserSerializer
 User = get_user_model()
 
 
-class AdminUserPagination(CursorPagination):
-    """Cursor pagination for admin user list."""
+class AdminPagination(PageNumberPagination):
+    """Page number pagination for admin views."""
 
-    page_size = 20
-    ordering = "-created_at"
-    cursor_query_param = "cursor"
+    page_size = 15
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class AdminUserListView(generics.ListCreateAPIView):
@@ -29,7 +28,7 @@ class AdminUserListView(generics.ListCreateAPIView):
 
     permission_classes = [IsSuperUser]
     queryset = User.objects.all().order_by("-created_at")
-    pagination_class = AdminUserPagination
+    pagination_class = AdminPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["email", "username"]
 
@@ -79,7 +78,7 @@ class AdminTodoListView(generics.ListAPIView):
 
     permission_classes = [IsSuperUser]
     serializer_class = AdminTodoSerializer
-    pagination_class = TodoPagination
+    pagination_class = AdminPagination
     queryset = Todo.objects.select_related("user").all().order_by("-created_at")
     filter_backends = [filters.SearchFilter]
     search_fields = ["title", "body", "user__email"]
