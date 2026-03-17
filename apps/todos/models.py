@@ -13,6 +13,7 @@ class Todo(models.Model):
     completed = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
+    color = models.CharField(max_length=20, default="default")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
