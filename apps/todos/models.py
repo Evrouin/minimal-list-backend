@@ -8,7 +8,7 @@ class Todo(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="todos")
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True, default="")
-    image = models.ImageField(upload_to="todos/", blank=True, null=True)
+    image = models.ImageField(upload_to="notes/", blank=True, null=True)
     completed = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
