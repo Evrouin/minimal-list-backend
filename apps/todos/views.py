@@ -46,6 +46,11 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
             queryset = queryset.filter(deleted=True)
         elif self.request.query_params.get("include_deleted") != "true":
             queryset = queryset.filter(deleted=False)
+        completed = self.request.query_params.get("completed")
+        if completed == "true":
+            queryset = queryset.filter(completed=True)
+        elif completed == "false":
+            queryset = queryset.filter(completed=False)
         return queryset
 
     @extend_schema(summary="List todos", description="Get all todos for the authenticated user. Pass ?include_deleted=true to include soft-deleted todos.")
