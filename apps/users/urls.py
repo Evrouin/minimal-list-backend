@@ -1,11 +1,22 @@
 from django.utils.decorators import method_decorator
 from django.urls import path
 from django_ratelimit.decorators import ratelimit
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
+
 
 @method_decorator(ratelimit(key="ip", rate="30/h", method="POST"), name="dispatch")
 class RateLimitedTokenRefreshView(TokenRefreshView):
-    pass
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except TokenError:
+            return Response(
+                {"error": "Token is invalid or expired. Please log in again."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
 from .views import (
     ChangePasswordView,
