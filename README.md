@@ -1,6 +1,6 @@
 # Minimal List API
 
-A production-ready REST API built with Django and Django REST Framework. Features JWT authentication, Google OAuth, email verification, todo management with soft delete, an admin backoffice, and cursor-based pagination — deployed on Render with a Nuxt.js frontend on Vercel.
+A production-ready REST API built with Django and Django REST Framework. Features JWT authentication, Google OAuth, email verification, note management with soft delete, an admin backoffice, and cursor-based pagination — deployed on Render with a Nuxt.js frontend on Vercel.
 
 **Live API:** https://minimalist-todo-api-luzd.onrender.com  
 **Swagger UI:** https://minimalist-todo-api-luzd.onrender.com/api/docs/  
@@ -21,15 +21,15 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 - **Authentication** — Register, login, JWT refresh, email verification, password reset with 24-hour expiry
 - **Google OAuth** — Social login with Google
 - **Custom User Model** — Email-based auth with profile fields
-- **Todo CRUD** — Create, read, update, soft delete, permanent delete, pin, bulk operations
+- **Note CRUD** — Create, read, update, soft delete, permanent delete, pin, bulk operations
 - **Cursor Pagination** — Efficient infinite scroll support
-- **Admin Backoffice** — Superuser-only endpoints for managing users and todos with search and pagination
+- **Admin Backoffice** — Superuser-only endpoints for managing users and notes with search and pagination
 - **Rate Limiting** — Per-endpoint IP-based throttling on auth routes
 - **Soft Delete** — Two-stage delete (soft → permanent) with restore capability
 - **Modular Settings** — Separate base, development, and production configurations
 - **Security Hardened** — HTTPS enforcement, secure cookies, CORS whitelisting in production
 - **Code Quality** — Black, Ruff, Flake8, MyPy
-- **Unit Tests** — 33 tests covering auth and todo endpoints
+- **Unit Tests** — 33 tests covering auth and note endpoints
 
 ## API Endpoints
 
@@ -52,16 +52,16 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 | PUT | `/api/auth/change-password/` | Change password |
 | DELETE | `/api/auth/delete-account/` | Delete account |
 
-### Todos
+### Notes
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/todos/` | List todos (cursor paginated) |
-| POST | `/api/todos/` | Create todo |
-| GET | `/api/todos/:id/` | Get todo |
-| PUT/PATCH | `/api/todos/:id/` | Update todo |
-| DELETE | `/api/todos/:id/` | Soft delete / permanent delete |
-| POST | `/api/todos/bulk-delete/` | Bulk delete |
-| POST | `/api/todos/bulk-pin/` | Bulk pin/unpin |
+| GET | `/api/notes/` | List notes (cursor paginated) |
+| POST | `/api/notes/` | Create note |
+| GET | `/api/notes/:id/` | Get note |
+| PUT/PATCH | `/api/notes/:id/` | Update note |
+| DELETE | `/api/notes/:id/` | Soft delete / permanent delete |
+| POST | `/api/notes/bulk-delete/` | Bulk delete |
+| POST | `/api/notes/bulk-pin/` | Bulk pin/unpin |
 
 ### Admin Backoffice (Superuser)
 | Method | Endpoint | Description |
@@ -69,15 +69,15 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 | GET | `/api/admin/stats/` | Dashboard statistics |
 | GET/POST | `/api/admin/users/` | List / create users |
 | GET/PATCH/DELETE | `/api/admin/users/:id/` | User detail / update / delete |
-| GET | `/api/admin/todos/` | List all todos (searchable) |
-| GET/DELETE | `/api/admin/todos/:id/` | Todo detail / permanent delete |
+| GET | `/api/admin/notes/` | List all notes (searchable) |
+| GET/DELETE | `/api/admin/notes/:id/` | Note detail / permanent delete |
 
 ## Project Structure
 
 ```
 ├── apps/
 │   ├── users/           # Auth, profile, admin backoffice
-│   └── todos/           # Todo CRUD, pagination, bulk ops
+│   └── notes/           # Note CRUD, pagination, bulk ops
 ├── config/
 │   └── settings/        # base / development / production
 ├── requirements/        # base / development / production
