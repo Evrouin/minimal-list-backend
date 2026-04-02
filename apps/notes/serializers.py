@@ -13,7 +13,7 @@ class NoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Note
-        fields = ["id", "title", "body", "image", "thumbnail", "audio", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
+        fields = ["id", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
         read_only_fields = ["id", "thumbnail", "created_at", "updated_at"]
 
     def validate_image(self, value):
@@ -27,6 +27,25 @@ class NoteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Audio must be under 10MB.")
             if value.content_type not in ALLOWED_AUDIO_TYPES:
                 raise serializers.ValidationError("Unsupported audio format.")
+        return value
+
+    def validate_link_previews(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Must be a list.")
+        if len(value) > 10:
+            raise serializers.ValidationError("Maximum 10 link previews per note.")
+        required = {"url", "title", "domain"}
+        allowed = {"url", "title", "description", "image", "domain"}
+        for item in value:
+            if not isinstance(item, dict):
+                raise serializers.ValidationError("Each preview must be an object.")
+            if not required.issubset(item.keys()):
+                raise serializers.ValidationError(f"Each preview must have: {', '.join(required)}.")
+            if not set(item.keys()).issubset(allowed):
+                raise serializers.ValidationError(f"Allowed fields: {', '.join(allowed)}.")
+            for field in allowed:
+                if field in item and not isinstance(item[field], str):
+                    raise serializers.ValidationError(f"'{field}' must be a string.")
         return value
 
     def create(self, validated_data):
