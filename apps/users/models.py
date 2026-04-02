@@ -13,6 +13,8 @@ class User(AbstractUser):
     avatar_url = models.URLField(blank=True, default="")
     bio = models.TextField(blank=True, default="")
     is_verified = models.BooleanField(default=False)
+    failed_login_attempts = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(blank=True, null=True)
     verification_token = models.CharField(max_length=100, blank=True, default="", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

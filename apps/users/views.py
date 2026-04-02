@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from decouple import config  # type: ignore[import-untyped]
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -69,20 +72,64 @@ class RegisterView(generics.CreateAPIView):
 
 @method_decorator(ratelimit(key="ip", rate="10/h", method="POST"), name="dispatch")
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """Login endpoint with rate limiting."""
+    """Login endpoint with rate limiting and account lockout."""
+
+    MAX_FAILED_ATTEMPTS = 5
 
     @extend_schema(
         summary="Login and obtain JWT tokens",
         description="Authenticate with email and password to receive access and refresh tokens.",
     )
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        user = User.objects.get(email=request.data.get("email"))
+        email = request.data.get("email", "")
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if user.locked_until and user.locked_until > timezone.now():
+            return Response(
+                {"error": "Account locked due to too many failed attempts. Check your email to unlock."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if not user.is_verified:
             return Response(
                 {"error": "Please verify your email before logging in."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception:
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
+                user.locked_until = timezone.now() + timedelta(hours=1)
+                user.failed_login_attempts = 0
+                user.verification_token = get_random_string(64)
+                user.save()
+                send_mail(
+                    "Account Locked",
+                    f"Your account has been locked due to {self.MAX_FAILED_ATTEMPTS} failed login attempts.\n\n"
+                    f"Click here to unlock: {settings.FRONTEND_URL}/unlock-account/{user.verification_token}",
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=True,
+                )
+                return Response(
+                    {"error": "Account locked due to too many failed attempts. Check your email to unlock."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            user.save()
+            return Response(
+                {"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.save()
         return response
 
 
@@ -185,6 +232,23 @@ def verify_email(request, token):
         return Response(
             {"error": "Invalid verification token."}, status=status.HTTP_400_BAD_REQUEST
         )
+
+
+@extend_schema(summary="Unlock account", description="Unlock a locked account using the token sent via email.")
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@ratelimit(key="ip", rate="5/h", method="POST")
+def unlock_account(request, token):
+    """Unlock a locked account."""
+    try:
+        user = User.objects.get(verification_token=token)
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        user.verification_token = ""
+        user.save(update_fields=["locked_until", "failed_login_attempts", "verification_token"])
+        return Response({"message": "Account unlocked successfully."})
+    except User.DoesNotExist:
+        return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(
