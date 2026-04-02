@@ -27,6 +27,9 @@ djangorestframework-simplejwt==5.3.1
 # Image handling
 Pillow==10.2.0
 
+# HTML parsing
+beautifulsoup4==4.12.3
+
 # Rate limiting
 django-ratelimit==4.1.0
 
