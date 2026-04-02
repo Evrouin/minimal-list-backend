@@ -104,6 +104,8 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2_621_440  # 2.5MB
+
 # Custom user model
 AUTH_USER_MODEL = "users.User"
 
