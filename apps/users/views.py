@@ -233,6 +233,32 @@ def verify_email(request, token):
         )
 
 
+@extend_schema(summary="Resend verification email", description="Resend the verification email for an unverified account.")
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@ratelimit(key="ip", rate="3/h", method="POST")
+def resend_verification(request):
+    """Resend verification email."""
+    email = request.data.get("email", "").strip()
+    if not email:
+        return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        user = User.objects.get(email=email)
+        if user.is_verified:
+            return Response({"message": "Email already verified."})
+        user.generate_verification_token()
+        verification_url = f"{settings.FRONTEND_URL}/auth/verify-email/{user.verification_token}"
+        send_template_email(
+            subject="minimal list - verify your email",
+            template_name="verify-email",
+            context={"verification_url": verification_url},
+            to_email=user.email,
+        )
+    except User.DoesNotExist:
+        pass
+    return Response({"message": "If the email exists and is unverified, a verification link has been sent."})
+
+
 @extend_schema(summary="Unlock account", description="Unlock a locked account using the token sent via email.")
 @api_view(["POST"])
 @permission_classes([AllowAny])

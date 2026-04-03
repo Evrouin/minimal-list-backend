@@ -28,6 +28,7 @@ from .views import (
     logout,
     password_reset_confirm,
     password_reset_request,
+    resend_verification,
     set_password,
     unlock_account,
     verify_email,
@@ -42,6 +43,7 @@ urlpatterns = [
     path("token/refresh/", RateLimitedTokenRefreshView.as_view(), name="token_refresh"),
     # Email verification
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
+    path("resend-verification/", resend_verification, name="resend_verification"),
     path("unlock-account/<str:token>/", unlock_account, name="unlock_account"),
     # Password reset
     path("password-reset/", password_reset_request, name="password_reset_request"),
