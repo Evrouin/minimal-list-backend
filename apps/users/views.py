@@ -494,7 +494,13 @@ def google_login(request):
 
         if not user.is_active:
             return Response(
-                {"error": "This account has been deactivated."},
+                {"error": "Your account has been deactivated. Please contact support."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if user.locked_until and user.locked_until > timezone.now():
+            return Response(
+                {"error": "Account locked due to too many failed attempts. Check your email to unlock."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
