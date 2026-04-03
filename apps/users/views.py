@@ -96,6 +96,12 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        if not user.is_active:
+            return Response(
+                {"error": "Your account has been deactivated. Please contact support."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if not user.is_verified:
             return Response(
                 {"error": "Please verify your email before logging in."},
