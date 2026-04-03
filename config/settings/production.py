@@ -36,6 +36,9 @@ AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default="")  # noqa: F405
 AWS_S3_CUSTOM_DOMAIN = config("AWS_S3_CUSTOM_DOMAIN", default="")  # noqa: F405
 AWS_QUERYSTRING_AUTH = False
 AWS_S3_FILE_OVERWRITE = False
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": "public, max-age=31536000",
+}
 
 if AWS_ACCESS_KEY_ID:
     STORAGES["default"] = {  # noqa: F405
