@@ -1,0 +1,7 @@
+minimal list — verify your email
+
+welcome! thanks for signing up. verify your email to get started.
+
+verify here: {{ verification_url }}
+
+this link expires in 24 hours. if you didn't create an account, you can ignore this email.

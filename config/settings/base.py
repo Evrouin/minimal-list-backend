@@ -153,7 +153,7 @@ SIMPLE_JWT = {
 }
 
 # Email configuration
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@django-auth.com")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@minimal-list.evrouin.com")
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
 # Rate limiting

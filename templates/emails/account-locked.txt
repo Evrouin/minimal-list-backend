@@ -1,0 +1,7 @@
+minimal list — account locked
+
+your account has been locked after 5 failed login attempts. click below to unlock it.
+
+unlock here: {{ unlock_url }}
+
+your account will automatically unlock after 1 hour. if this wasn't you, we recommend changing your password immediately.

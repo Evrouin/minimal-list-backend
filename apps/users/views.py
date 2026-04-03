@@ -4,6 +4,8 @@ from decouple import config  # type: ignore[import-untyped]
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
+
+from .email import send_template_email
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
@@ -52,13 +54,12 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
 
         # Send verification email
-        verification_url = f"{settings.FRONTEND_URL}/verify-email/{user.verification_token}"
-        send_mail(
-            "Verify your email",
-            f"Click the link to verify your email: {verification_url}",
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=True,
+        verification_url = f"{settings.FRONTEND_URL}/auth/verify-email/{user.verification_token}"
+        send_template_email(
+            subject="minimal list - verify your email",
+            template_name="verify-email",
+            context={"verification_url": verification_url},
+            to_email=user.email,
         )
 
         return Response(
@@ -110,13 +111,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user.failed_login_attempts = 0
                 user.verification_token = get_random_string(64)
                 user.save()
-                send_mail(
-                    "Account Locked",
-                    f"Your account has been locked due to {self.MAX_FAILED_ATTEMPTS} failed login attempts.\n\n"
-                    f"Click here to unlock: {settings.FRONTEND_URL}/unlock-account/{user.verification_token}",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [user.email],
-                    fail_silently=True,
+                send_template_email(
+                    subject="minimal list - account locked",
+                    template_name="account-locked",
+                    context={"unlock_url": f"{settings.FRONTEND_URL}/auth/unlock-account/{user.verification_token}"},
+                    to_email=user.email,
                 )
                 return Response(
                     {"error": "Account locked due to too many failed attempts. Check your email to unlock."},
@@ -269,13 +268,12 @@ def password_reset_request(request):
         reset_token = PasswordResetToken.create_token(user)
 
         # Send password reset email
-        reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset_token.token}"
-        send_mail(
-            "Password Reset Request",
-            f"Click the link to reset your password: {reset_url}\nThis link expires in 24 hours.",
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=True,
+        reset_url = f"{settings.FRONTEND_URL}/auth/reset-password/{reset_token.token}"
+        send_template_email(
+            subject="minimal list - password reset",
+            template_name="password-reset",
+            context={"reset_url": reset_url},
+            to_email=user.email,
         )
     except User.DoesNotExist:
         pass  # Don't reveal if email exists
