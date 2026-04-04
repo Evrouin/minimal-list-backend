@@ -411,6 +411,24 @@ class TestNoteUpdate:
         response = api_client.patch(f"/api/notes/{note.uuid}/", {"completed": True})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_bulk_reorder_notes(self, auth_client, create_note):
+        """Test bulk reorder moves a note to a new position."""
+        client, user = auth_client
+        n1 = create_note(user, title="A", order_id=3)
+        n2 = create_note(user, title="B", order_id=2)
+        n3 = create_note(user, title="C", order_id=1)
+
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(n1.uuid), "new_position": 3, "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        assert n2.order_id > n3.order_id > n1.order_id
+
 
 @pytest.mark.django_db
 class TestNoteDelete:

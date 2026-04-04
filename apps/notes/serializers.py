@@ -63,12 +63,36 @@ class NoteSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             user = getattr(request, "user", None)
             if user and user.is_authenticated:
-                max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"] or 0
-                validated_data["order_id"] = max_order + 1
+                from django.db.models import F, Min
+                pinned_min = Note.objects.filter(user=user, deleted=False, pinned=True).aggregate(m=Min("order_id"))["m"]
+                if pinned_min:
+                    validated_data["order_id"] = pinned_min
+                    Note.objects.filter(user=user, deleted=False, pinned=True).update(order_id=F("order_id") + 1)
+                else:
+                    max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"] or 0
+                    validated_data["order_id"] = max_order + 1
 
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        if "pinned" in validated_data and validated_data["pinned"] != instance.pinned:
+            request = self.context.get("request")
+            user = getattr(request, "user", None)
+            if user and user.is_authenticated:
+                from django.db.models import F, Min
+
+                if validated_data["pinned"]:
+                    max_order = Note.objects.filter(user=user, deleted=False).aggregate(m=Max("order_id"))["m"] or 0
+                    validated_data["order_id"] = max_order + 1
+                else:
+                    pinned_min = Note.objects.filter(user=user, deleted=False, pinned=True).exclude(pk=instance.pk).aggregate(m=Min("order_id"))["m"]
+                    if pinned_min:
+                        validated_data["order_id"] = pinned_min
+                        Note.objects.filter(user=user, deleted=False, pinned=True).exclude(pk=instance.pk).update(order_id=F("order_id") + 1)
+                    else:
+                        max_order = Note.objects.filter(user=user, deleted=False).exclude(pk=instance.pk).aggregate(m=Max("order_id"))["m"] or 0
+                        validated_data["order_id"] = max_order + 1
+
         old_image_name = instance.image.name if instance.image else None
         old_thumbnail_name = instance.thumbnail.name if instance.thumbnail else None
         old_image_storage = instance.image.storage if instance.image else None
