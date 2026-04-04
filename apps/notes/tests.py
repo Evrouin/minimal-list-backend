@@ -121,52 +121,196 @@ class TestNoteList:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_bulk_reorder_notes_move_down(self, auth_client, create_note):
-        """Test reorder moves a note down and shifts adjacent notes up."""
+        """Test reorder moves an unpinned note to a lower position (higher position number)."""
         client, user = auth_client
-        note1 = create_note(user, title="First note")  # order_id = 1
-        note2 = create_note(user, title="Second note")  # order_id = 2
-        note3 = create_note(user, title="Third note")  # order_id = 3
-        note4 = create_note(user, title="Fourth note")  # order_id = 4
+        # Create notes: display order is -order_id, so order_id=4 shows first
+        n1 = create_note(user, title="A", order_id=4)  # display pos 1
+        n2 = create_note(user, title="B", order_id=3)  # display pos 2
+        n3 = create_note(user, title="C", order_id=2)  # display pos 3
+        n4 = create_note(user, title="D", order_id=1)  # display pos 4
 
-        # Move note1 (position 1) to position 3
+        # Move A (pos 1) to pos 3 → expected: B, C, A, D
         response = client.post(
             "/api/notes/bulk-reorder/",
-            {"uuid": str(note1.uuid), "new_position": 3},
+            {"uuid": str(n1.uuid), "new_position": 3, "pinned": False},
             format="json",
         )
-
         assert response.status_code == status.HTTP_200_OK
-        # note1 should be at position 3
-        assert Note.objects.get(uuid=note1.uuid).order_id == 3
-        # note2 and note3 should shift up (2 -> 1, 3 -> 2)
-        assert Note.objects.get(uuid=note2.uuid).order_id == 1
-        assert Note.objects.get(uuid=note3.uuid).order_id == 2
-        # note4 should stay at position 4
-        assert Note.objects.get(uuid=note4.uuid).order_id == 4
+
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        n4.refresh_from_db()
+        assert n2.order_id > n3.order_id > n1.order_id > n4.order_id
 
     def test_bulk_reorder_notes_move_up(self, auth_client, create_note):
-        """Test reorder moves a note up and shifts adjacent notes down."""
+        """Test reorder moves an unpinned note to a higher position (lower position number)."""
         client, user = auth_client
-        note1 = create_note(user, title="First note")  # order_id = 1
-        note2 = create_note(user, title="Second note")  # order_id = 2
-        note3 = create_note(user, title="Third note")  # order_id = 3
-        note4 = create_note(user, title="Fourth note")  # order_id = 4
+        n1 = create_note(user, title="A", order_id=4)  # display pos 1
+        n2 = create_note(user, title="B", order_id=3)  # display pos 2
+        n3 = create_note(user, title="C", order_id=2)  # display pos 3
+        n4 = create_note(user, title="D", order_id=1)  # display pos 4
 
-        # Move note3 (position 3) to position 1
+        # Move C (pos 3) to pos 1 → expected: C, A, B, D
         response = client.post(
             "/api/notes/bulk-reorder/",
-            {"uuid": str(note3.uuid), "new_position": 1},
+            {"uuid": str(n3.uuid), "new_position": 1, "pinned": False},
             format="json",
         )
-
         assert response.status_code == status.HTTP_200_OK
-        # note3 should be at position 1
-        assert Note.objects.get(uuid=note3.uuid).order_id == 1
-        # note1 and note2 should shift down (1 -> 2, 2 -> 3)
-        assert Note.objects.get(uuid=note1.uuid).order_id == 2
-        assert Note.objects.get(uuid=note2.uuid).order_id == 3
-        # note4 should stay at position 4
-        assert Note.objects.get(uuid=note4.uuid).order_id == 4
+
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        n4.refresh_from_db()
+        assert n3.order_id > n1.order_id > n2.order_id > n4.order_id
+
+    def test_bulk_reorder_notes_move_to_last(self, auth_client, create_note):
+        """Test reorder moves a note to the last position."""
+        client, user = auth_client
+        n1 = create_note(user, title="A", order_id=4)
+        n2 = create_note(user, title="B", order_id=3)
+        n3 = create_note(user, title="C", order_id=2)
+        n4 = create_note(user, title="D", order_id=1)
+
+        # Move A (pos 1) to pos 4 → expected: B, C, D, A
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(n1.uuid), "new_position": 4, "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        n4.refresh_from_db()
+        assert n2.order_id > n3.order_id > n4.order_id > n1.order_id
+
+    def test_bulk_reorder_notes_same_position(self, auth_client, create_note):
+        """Test reorder to same position is a no-op."""
+        client, user = auth_client
+        n1 = create_note(user, title="A", order_id=3)
+        n2 = create_note(user, title="B", order_id=2)
+        n3 = create_note(user, title="C", order_id=1)
+
+        old_ids = {n.uuid: n.order_id for n in [n1, n2, n3]}
+
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(n2.uuid), "new_position": 2, "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        for n in [n1, n2, n3]:
+            n.refresh_from_db()
+            assert n.order_id == old_ids[n.uuid]
+
+    def test_bulk_reorder_pinned_section(self, auth_client, create_note):
+        """Test reorder within pinned section doesn't affect unpinned notes."""
+        client, user = auth_client
+        # Pinned notes get highest order_ids
+        p1 = create_note(user, title="P1", order_id=6)
+        p1.pinned = True
+        p1.save()
+        p2 = create_note(user, title="P2", order_id=5)
+        p2.pinned = True
+        p2.save()
+        p3 = create_note(user, title="P3", order_id=4)
+        p3.pinned = True
+        p3.save()
+        # Unpinned
+        u1 = create_note(user, title="U1", order_id=3)
+        u2 = create_note(user, title="U2", order_id=2)
+        u3 = create_note(user, title="U3", order_id=1)
+
+        # Move P1 (pinned pos 1) to pinned pos 3 → P2, P3, P1
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(p1.uuid), "new_position": 3, "pinned": True},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        for n in [p1, p2, p3, u1, u2, u3]:
+            n.refresh_from_db()
+
+        # Pinned order: P2 > P3 > P1
+        assert p2.order_id > p3.order_id > p1.order_id
+        # All pinned still above all unpinned
+        assert min(p1.order_id, p2.order_id, p3.order_id) > max(u1.order_id, u2.order_id, u3.order_id)
+        # Unpinned relative order unchanged
+        assert u1.order_id > u2.order_id > u3.order_id
+
+    def test_bulk_reorder_unpinned_section(self, auth_client, create_note):
+        """Test reorder within unpinned section doesn't affect pinned notes."""
+        client, user = auth_client
+        p1 = create_note(user, title="P1", order_id=5)
+        p1.pinned = True
+        p1.save()
+        p2 = create_note(user, title="P2", order_id=4)
+        p2.pinned = True
+        p2.save()
+        u1 = create_note(user, title="U1", order_id=3)
+        u2 = create_note(user, title="U2", order_id=2)
+        u3 = create_note(user, title="U3", order_id=1)
+
+        # Move U1 (unpinned pos 1) to unpinned pos 3 → U2, U3, U1
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(u1.uuid), "new_position": 3, "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        for n in [p1, p2, u1, u2, u3]:
+            n.refresh_from_db()
+
+        # Pinned unchanged and still above unpinned
+        assert p1.order_id > p2.order_id
+        assert min(p1.order_id, p2.order_id) > max(u1.order_id, u2.order_id, u3.order_id)
+        # Unpinned order: U2 > U3 > U1
+        assert u2.order_id > u3.order_id > u1.order_id
+
+    def test_bulk_reorder_no_duplicate_order_ids(self, auth_client, create_note):
+        """Test reorder never produces duplicate order_ids."""
+        client, user = auth_client
+        notes = [create_note(user, title=f"N{i}") for i in range(10)]
+
+        # Move first to last
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(notes[0].uuid), "new_position": 10, "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        from django.db.models import Count
+        dupes = Note.objects.filter(user=user, deleted=False).values("order_id").annotate(c=Count("id")).filter(c__gt=1)
+        assert not dupes.exists()
+
+    def test_bulk_reorder_requires_pinned_field(self, auth_client, create_note):
+        """Test reorder returns 400 if pinned field is missing."""
+        client, user = auth_client
+        note = create_note(user, title="Test")
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(note.uuid), "new_position": 1},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_bulk_reorder_wrong_section(self, auth_client, create_note):
+        """Test reorder returns 404 if note is not in the specified section."""
+        client, user = auth_client
+        note = create_note(user, title="Unpinned note")
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(note.uuid), "new_position": 1, "pinned": True},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
