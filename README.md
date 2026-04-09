@@ -29,6 +29,7 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 - **Admin Backoffice** — Superuser-only endpoints for managing users and notes with search and pagination
 - **Rate Limiting** — Per-endpoint IP and user-based throttling
 - **Account Lockout** — Auto-lock after 5 failed login attempts with email unlock
+- **Session Management** — Device-aware session tracking, per-device deduplication, revoke individual or all other sessions, automatic cleanup of blacklisted/expired sessions
 - **Soft Delete** — Two-stage delete (soft → permanent) with restore capability
 - **HTML Emails** — Branded transactional emails for verification, lockout, and password reset
 - **Modular Settings** — Separate base, development, and production configurations
