@@ -3,6 +3,8 @@ import logging
 import socket
 from urllib.parse import urlparse
 
+NO_IDS_ERROR = "No IDs provided."
+
 import requests as http_requests
 from bs4 import BeautifulSoup
 from django.conf import settings
@@ -149,7 +151,7 @@ def bulk_delete_notes(request):
     """Soft-delete active notes, permanently delete already soft-deleted ones."""
     ids = request.data.get("ids", [])
     if not ids:
-        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": NO_IDS_ERROR}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
     notes = Note.objects.filter(uuid__in=ids, user=request.user)
@@ -237,7 +239,7 @@ def bulk_pin_notes(request):
     ids = request.data.get("ids", [])
     pinned = request.data.get("pinned", True)
     if not ids:
-        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": NO_IDS_ERROR}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
     Note.objects.filter(uuid__in=ids, user=request.user).update(pinned=pinned)
@@ -251,7 +253,7 @@ def bulk_restore_notes(request):
     """Restore soft-deleted notes, assigning new order_ids to avoid duplicates."""
     ids = request.data.get("ids", [])
     if not ids:
-        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": NO_IDS_ERROR}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
 

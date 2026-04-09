@@ -542,7 +542,12 @@ def google_login(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_sessions(request):
-    sessions = UserSession.objects.filter(user=request.user)
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+
+    blacklisted_jtis = set(
+        BlacklistedToken.objects.filter(token__user=request.user).values_list("token__jti", flat=True)
+    )
+
     current_jti = None
     refresh = request.query_params.get("refresh")
     if refresh:
@@ -551,8 +556,19 @@ def list_sessions(request):
         except Exception:
             pass
 
+    seen_fingerprints = set()
+    stale_ids = []
+    sessions = UserSession.objects.filter(user=request.user)
+
     data = []
     for s in sessions:
+        if s.jti in blacklisted_jtis:
+            stale_ids.append(s.id)
+            continue
+        if s.device_fingerprint in seen_fingerprints:
+            stale_ids.append(s.id)
+            continue
+        seen_fingerprints.add(s.device_fingerprint)
         data.append({
             "id": s.id,
             "device_name": s.device_name,
@@ -564,6 +580,10 @@ def list_sessions(request):
             "last_active_at": s.last_active_at.isoformat(),
             "is_current": s.jti == current_jti,
         })
+
+    if stale_ids:
+        UserSession.objects.filter(id__in=stale_ids).delete()
+
     return Response({"data": data})
 
 

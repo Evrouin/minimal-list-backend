@@ -13,16 +13,25 @@ from rest_framework_simplejwt.views import TokenRefreshView
 class RateLimitedTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         try:
-            # Update session last_active_at
             old_token = request.data.get("refresh")
+            old_jti = None
             if old_token:
                 try:
-                    from apps.users.models import UserSession
-                    jti = RefreshToken(old_token)["jti"]
-                    UserSession.objects.filter(jti=jti).update(last_active_at=timezone.now())
+                    old_jti = RefreshToken(old_token)["jti"]
                 except Exception:
                     pass
-            return super().post(request, *args, **kwargs)
+
+            response = super().post(request, *args, **kwargs)
+
+            if old_jti and response.status_code == 200:
+                try:
+                    from apps.users.models import UserSession
+                    new_jti = RefreshToken(response.data["refresh"])["jti"]
+                    UserSession.objects.filter(jti=old_jti).update(jti=new_jti, last_active_at=timezone.now())
+                except Exception:
+                    pass
+
+            return response
         except TokenError:
             return Response(
                 {"error": "Token is invalid or expired. Please log in again."},
