@@ -46,11 +46,6 @@ class Migration(migrations.Migration):
             name="is_archived",
             field=models.BooleanField(default=False),
         ),
-        migrations.AddField(
-            model_name="note",
-            name="archived_by_folder",
-            field=models.BooleanField(default=False),
-        ),
         migrations.AddIndex(
             model_name="note",
             index=models.Index(fields=["user", "is_archived"], name="notes_user_archived_idx"),
