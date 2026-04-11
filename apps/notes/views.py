@@ -21,8 +21,8 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Note
-from .serializers import NoteSerializer
+from .models import Folder, Note
+from .serializers import FolderSerializer, NoteSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,11 @@ class NotePagination(CursorPagination):
     page_size = 20
     ordering = "-order_id"
     cursor_query_param = "cursor"
+
+    def get_ordering(self, request, queryset, view):
+        if request.query_params.get("has_reminder") == "true":
+            return ("reminder_at",)
+        return super().get_ordering(request, queryset, view)
 
 
 class ApiResponseMixin:
@@ -57,9 +62,17 @@ class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = Note.objects.filter(user=self.request.user)  # type: ignore[misc]
         if self.request.query_params.get("deleted_only") == "true":
-            queryset = queryset.filter(deleted=True)
-        elif self.request.query_params.get("include_deleted") != "true":
-            queryset = queryset.filter(deleted=False)
+            return queryset.filter(deleted=True)
+        if self.request.query_params.get("archived_only") == "true":
+            return queryset.filter(is_archived=True, deleted=False)
+        # Default: exclude deleted and archived
+        queryset = queryset.filter(deleted=False, is_archived=False)
+        # Reminders folder: cross-folder view of all notes with reminder_at set
+        if self.request.query_params.get("has_reminder") == "true":
+            return queryset.filter(reminder_at__isnull=False).order_by("reminder_at")
+        folder = self.request.query_params.get("folder")
+        if folder:
+            queryset = queryset.filter(folder__uuid=folder)
         completed = self.request.query_params.get("completed")
         if completed == "true":
             queryset = queryset.filter(completed=True)
@@ -127,6 +140,9 @@ class NoteDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        if serializer.validated_data.get("deleted") is False and instance.deleted:
+            if instance.folder is None or instance.folder.is_archived:
+                instance.folder = Folder.objects.filter(user=request.user, name="notes", is_default=True).first()
         serializer.save()
         return self.api_response(serializer.data)
 
@@ -137,7 +153,9 @@ class NoteDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
             instance.delete()
         else:
             instance.deleted = True
-            instance.save()
+            instance.pinned = False
+            instance.reminder_at = None
+            instance.save(update_fields=["deleted", "pinned", "reminder_at"])
         return self.api_response({"success": True})
 
 
@@ -277,10 +295,14 @@ def bulk_restore_notes(request):
             .filter(uuid__in=ids, user=request.user, deleted=True)
             .order_by("order_id", "created_at")
         )
+        default_folder = Folder.objects.filter(user=request.user, name="notes", is_default=True).first()
         for i, note in enumerate(notes, start=1):
             note.deleted = False
             note.order_id = max_order + i
-        Note.objects.bulk_update(notes, ["deleted", "order_id"])
+            # If original folder was deleted (NULL) or is archived, restore to default
+            if note.folder is None or note.folder.is_archived:
+                note.folder = default_folder
+        Note.objects.bulk_update(notes, ["deleted", "order_id", "folder"])
 
     return Response({"success": True})
 

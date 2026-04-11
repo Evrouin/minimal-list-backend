@@ -12,4 +12,10 @@ urlpatterns = [
     path("empty-trash/", empty_trash, name="note_empty_trash"),
     path("link-preview/", link_preview, name="note_link_preview"),
     path("<uuid:uuid>/", NoteDetailView.as_view(), name="note_detail"),
+    # Folders
+    path("folders/", FolderListCreateView.as_view(), name="folder_list_create"),
+    path("folders/reorder/", reorder_folders, name="folder_reorder"),
+    path("folders/<uuid:uuid>/", FolderDetailView.as_view(), name="folder_detail"),
+    path("folders/<uuid:uuid>/archive/", archive_folder, name="folder_archive"),
+    path("folders/<uuid:uuid>/unarchive/", unarchive_folder, name="folder_unarchive"),
 ]

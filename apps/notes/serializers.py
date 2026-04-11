@@ -1,8 +1,31 @@
 from django.db.models import Max
 from rest_framework import serializers
 
-from .models import Note
+from .models import Folder, Note
 from .utils import process_image
+
+
+class FolderSerializer(serializers.ModelSerializer):
+    note_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Folder
+        fields = ["uuid", "name", "is_default", "order", "is_archived", "note_count", "created_at"]
+        read_only_fields = ["uuid", "is_default", "is_archived", "created_at"]
+
+    def get_note_count(self, obj):
+        if hasattr(obj, "active_note_count"):
+            return obj.active_note_count
+        return obj.notes.filter(deleted=False, is_archived=False).count()
+
+    def validate_name(self, value):
+        user = self.context["request"].user
+        qs = Folder.objects.filter(user=user, name=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A folder with this name already exists.")
+        return value
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
@@ -12,10 +35,18 @@ ALLOWED_AUDIO_TYPES = {"audio/webm", "audio/mp4", "audio/mpeg", "audio/ogg", "au
 class NoteSerializer(serializers.ModelSerializer):
     """Serializer for note items."""
 
+    folder = serializers.SlugRelatedField(slug_field="uuid", queryset=Folder.objects.none(), allow_null=True, required=False)
+
     class Meta:
         model = Note
-        fields = ["uuid", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "order_id", "color", "reminder_at", "created_at", "updated_at"]
-        read_only_fields = ["uuid", "thumbnail", "created_at", "updated_at"]
+        fields = ["uuid", "folder", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "is_archived", "archived_by_folder", "order_id", "color", "reminder_at", "snoozed_until", "created_at", "updated_at"]
+        read_only_fields = ["uuid", "thumbnail", "is_archived", "archived_by_folder", "created_at", "updated_at"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            self.fields["folder"].queryset = Folder.objects.filter(user=request.user)
 
     def validate_order_id(self, value):
         if value is None or not isinstance(value, int) or value < 0:
