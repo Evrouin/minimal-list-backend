@@ -64,6 +64,9 @@ class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
         if self.request.query_params.get("deleted_only") == "true":
             return queryset.filter(deleted=True)
         if self.request.query_params.get("archived_only") == "true":
+            folder_uuid = self.request.query_params.get("folder")
+            if folder_uuid:
+                return queryset.filter(is_archived=True, deleted=False, folder__uuid=folder_uuid)
             return queryset.filter(is_archived=True, deleted=False, archived_by_folder=False)
         # Default: exclude deleted and archived
         queryset = queryset.filter(deleted=False, is_archived=False)
