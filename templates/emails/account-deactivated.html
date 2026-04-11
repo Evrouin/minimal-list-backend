@@ -1,0 +1,10 @@
+<!DOCTYPE html><html><body>
+<p>Your account has been deactivated.</p>
+{% if reason == "self" %}
+<p>To reactivate your account, click the link below:</p>
+<p><a href="{{ frontend_url }}/auth/reactivate/{{ token }}">Reactivate My Account</a></p>
+<p>This link expires in 7 days.</p>
+{% else %}
+<p>Your account was deactivated by an administrator. Please contact support if you believe this is a mistake.</p>
+{% endif %}
+</body></html>

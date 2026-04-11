@@ -97,6 +97,16 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
 
         if not user.is_active:
+            if user.is_pending_deletion:
+                return Response(
+                    {"error": "Your account is scheduled for deletion. Check your email to cancel."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if user.is_self_deactivated:
+                return Response(
+                    {"error": "Your account is deactivated. Check your email for a reactivation link."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             return Response(
                 {"error": "Your account has been deactivated. Please contact support."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -412,17 +422,108 @@ def logout(request):
         return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(
-    summary="Delete user account",
-    description="Permanently delete the authenticated user's account.",
-)
+@extend_schema(summary="Delete user account", description="Schedules account for deletion in 30 days. Sends recovery email.")
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_account(request):
-    """Delete user account."""
+    """Soft-delete: schedule account for permanent deletion in 30 days."""
+    from datetime import timedelta
+    from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+    from rest_framework_simplejwt.tokens import RefreshToken as RT
+    from .email import send_deletion_scheduled_email
+
     user = request.user
-    user.delete()
-    return Response({"message": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    token = get_random_string(64)
+
+    # Cancel any pending deactivation — deletion takes precedence
+    user.scheduled_deletion_at = timezone.now() + timedelta(days=30)
+    user.deletion_recovery_token = token
+    user.is_active = False
+    user.deactivation_reason = ""
+    user.reactivation_token = ""
+    user.reactivation_token_expires = None
+    user.save(update_fields=["scheduled_deletion_at", "deletion_recovery_token", "is_active", "deactivation_reason", "reactivation_token", "reactivation_token_expires"])
+
+    for session in user.sessions.all():
+        try:
+            ot = OutstandingToken.objects.get(jti=session.jti)
+            RT(ot.token).blacklist()
+        except Exception:
+            pass
+    user.sessions.all().delete()
+
+    send_deletion_scheduled_email(user, token)
+    return Response({"message": "Account scheduled for deletion in 30 days. Check your email to cancel."})
+
+
+@extend_schema(summary="Recover account", description="Cancel scheduled account deletion via token.")
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def recover_account(request, token):
+    try:
+        user = User.objects.get(deletion_recovery_token=token, is_active=False)
+    except User.DoesNotExist:
+        return Response({"error": "Invalid or expired recovery link."}, status=status.HTTP_400_BAD_REQUEST)
+    if not user.scheduled_deletion_at:
+        return Response({"error": "No pending deletion found."}, status=status.HTTP_400_BAD_REQUEST)
+    user.scheduled_deletion_at = None
+    user.deletion_recovery_token = ""
+    user.is_active = True
+    user.save(update_fields=["scheduled_deletion_at", "deletion_recovery_token", "is_active"])
+    return Response({"message": "Account recovery successful. You can now log in."})
+
+
+@extend_schema(summary="Deactivate account", description="Self-service account deactivation. Sends reactivation email.")
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def deactivate_account(request):
+    from datetime import timedelta
+    from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+    from rest_framework_simplejwt.tokens import RefreshToken as RT
+    from .email import send_account_deactivated_email
+
+    user = request.user
+    token = get_random_string(64)
+
+    # If pending deletion, cancel it — deactivation is less destructive
+    user.is_active = False
+    user.deactivation_reason = "self"
+    user.reactivation_token = token
+    user.reactivation_token_expires = timezone.now() + timedelta(days=7)
+    user.scheduled_deletion_at = None
+    user.deletion_recovery_token = ""
+    user.save(update_fields=["is_active", "deactivation_reason", "reactivation_token", "reactivation_token_expires", "scheduled_deletion_at", "deletion_recovery_token"])
+
+    for session in user.sessions.all():
+        try:
+            ot = OutstandingToken.objects.get(jti=session.jti)
+            RT(ot.token).blacklist()
+        except Exception:
+            pass
+    user.sessions.all().delete()
+
+    send_account_deactivated_email(user, token, reason="self")
+    return Response({"message": "Account deactivated. Check your email to reactivate."})
+
+
+@extend_schema(summary="Reactivate account", description="Reactivate a self-deactivated account via token.")
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def reactivate_account(request, token):
+    from .email import send_account_reactivated_email
+    try:
+        user = User.objects.get(reactivation_token=token, deactivation_reason="self", is_active=False)
+    except User.DoesNotExist:
+        return Response({"error": "Invalid or expired reactivation link."}, status=status.HTTP_400_BAD_REQUEST)
+    if user.reactivation_token_expires and user.reactivation_token_expires < timezone.now():
+        return Response({"error": "Reactivation link has expired. Please contact support."}, status=status.HTTP_400_BAD_REQUEST)
+    user.is_active = True
+    user.deactivation_reason = ""
+    user.reactivation_token = ""
+    user.reactivation_token_expires = None
+    user.save(update_fields=["is_active", "deactivation_reason", "reactivation_token", "reactivation_token_expires"])
+    send_account_reactivated_email(user)
+    return Response({"message": "Account reactivated. You can now log in."})
 
 
 @extend_schema(
@@ -500,10 +601,11 @@ def google_login(request):
                 user.save(update_fields=updated_fields)
 
         if not user.is_active:
-            return Response(
-                {"error": "Your account has been deactivated. Please contact support."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            if user.is_pending_deletion:
+                return Response({"error": "Your account is scheduled for deletion. Check your email to cancel."}, status=status.HTTP_403_FORBIDDEN)
+            if user.is_self_deactivated:
+                return Response({"error": "Your account is deactivated. Check your email for a reactivation link."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "Your account has been deactivated. Please contact support."}, status=status.HTTP_403_FORBIDDEN)
 
         if user.locked_until and user.locked_until > timezone.now():
             return Response(

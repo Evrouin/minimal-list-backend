@@ -1,0 +1,6 @@
+Your account has been deactivated.
+
+{% if reason == "self" %}You deactivated your account. To reactivate it, visit:
+{{ frontend_url }}/auth/reactivate/{{ token }}
+
+This link expires in 7 days.{% else %}Your account was deactivated by an administrator. Please contact support if you believe this is a mistake.{% endif %}

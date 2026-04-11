@@ -1,0 +1,6 @@
+Your account is scheduled for permanent deletion on {{ scheduled_deletion_at|date:"N j, Y" }}.
+
+To cancel, visit:
+{{ frontend_url }}/auth/recover-account/{{ token }}
+
+If you did not request this, please contact support immediately.

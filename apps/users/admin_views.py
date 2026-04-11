@@ -64,6 +64,36 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     @extend_schema(summary="Update user", description="Admin endpoint to update a user.")
     def partial_update(self, request, *args, **kwargs):
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+        from rest_framework_simplejwt.tokens import RefreshToken as RT
+        from apps.users.email import send_account_deactivated_email, send_account_reactivated_email
+
+        user = self.get_object()
+        is_active = request.data.get("is_active")
+
+        if is_active is False and user.is_active:
+            user.deactivation_reason = "admin"
+            user.reactivation_token = ""
+            user.reactivation_token_expires = None
+            user.save(update_fields=["deactivation_reason", "reactivation_token", "reactivation_token_expires"])
+            for session in user.sessions.all():
+                try:
+                    ot = OutstandingToken.objects.get(jti=session.jti)
+                    RT(ot.token).blacklist()
+                except Exception:
+                    pass
+            user.sessions.all().delete()
+            send_account_deactivated_email(user, token=None, reason="admin")
+
+        elif is_active is True and not user.is_active:
+            user.deactivation_reason = ""
+            user.reactivation_token = ""
+            user.reactivation_token_expires = None
+            user.scheduled_deletion_at = None
+            user.deletion_recovery_token = ""
+            user.save(update_fields=["deactivation_reason", "reactivation_token", "reactivation_token_expires", "scheduled_deletion_at", "deletion_recovery_token"])
+            send_account_reactivated_email(user)
+
         return super().partial_update(request, *args, **kwargs)
 
     @extend_schema(summary="Delete user", description="Admin endpoint to permanently delete a user.")

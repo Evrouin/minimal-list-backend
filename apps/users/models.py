@@ -21,6 +21,13 @@ class User(AbstractUser):
     failed_login_attempts = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(blank=True, null=True)
     verification_token = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    # Deactivation
+    deactivation_reason = models.CharField(max_length=10, choices=[("self", "Self"), ("admin", "Admin")], blank=True, default="")
+    reactivation_token = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    reactivation_token_expires = models.DateTimeField(blank=True, null=True)
+    # Soft deletion
+    scheduled_deletion_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    deletion_recovery_token = models.CharField(max_length=100, blank=True, default="", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -40,6 +47,18 @@ class User(AbstractUser):
         self.verification_token = get_random_string(64)
         self.save()
         return self.verification_token
+
+    @property
+    def is_self_deactivated(self) -> bool:
+        return not self.is_active and self.deactivation_reason == "self"
+
+    @property
+    def is_admin_deactivated(self) -> bool:
+        return not self.is_active and self.deactivation_reason == "admin"
+
+    @property
+    def is_pending_deletion(self) -> bool:
+        return self.scheduled_deletion_at is not None
 
 
 class PasswordResetToken(models.Model):
