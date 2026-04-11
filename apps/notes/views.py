@@ -64,7 +64,7 @@ class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
         if self.request.query_params.get("deleted_only") == "true":
             return queryset.filter(deleted=True)
         if self.request.query_params.get("archived_only") == "true":
-            return queryset.filter(is_archived=True, deleted=False)
+            return queryset.filter(is_archived=True, deleted=False, archived_by_folder=False)
         # Default: exclude deleted and archived
         queryset = queryset.filter(deleted=False, is_archived=False)
         # Reminders folder: cross-folder view of all notes with reminder_at set
@@ -436,9 +436,10 @@ class FolderListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
 
     def get_queryset(self):
         archived = self.request.query_params.get("archived") == "true"
+        note_filter = Q(notes__deleted=False, notes__is_archived=True) if archived else Q(notes__deleted=False, notes__is_archived=False)
         return (
             Folder.objects.filter(user=self.request.user, is_archived=archived)
-            .annotate(active_note_count=Count("notes", filter=Q(notes__deleted=False, notes__is_archived=False)))
+            .annotate(active_note_count=Count("notes", filter=note_filter))
         )
 
     @extend_schema(summary="List folders")
