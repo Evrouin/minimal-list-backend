@@ -373,3 +373,184 @@ def link_preview(request):
         return Response({"error": "Could not fetch preview."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
     return Response(data)
+
+
+# ---------------------------------------------------------------------------
+# Note archive / unarchive
+# ---------------------------------------------------------------------------
+
+@extend_schema(summary="Archive a note")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def archive_note(request, uuid):
+    note = Note.objects.filter(user=request.user, uuid=uuid, deleted=False).first()
+    if not note:
+        return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    note.is_archived = True
+    note.pinned = False
+    if note.reminder_at:
+        note.reminder_at = None
+    note.save(update_fields=["is_archived", "pinned", "reminder_at"])
+    return Response({"success": True})
+
+
+@extend_schema(summary="Unarchive a note")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def unarchive_note(request, uuid):
+    note = Note.objects.filter(user=request.user, uuid=uuid, deleted=False).first()
+    if not note:
+        return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    note.is_archived = False
+    note.save(update_fields=["is_archived"])
+    return Response({"success": True})
+
+
+@extend_schema(summary="Bulk archive/unarchive notes")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def bulk_archive_notes(request):
+    ids = request.data.get("ids", [])
+    archive = request.data.get("archived", True)
+    if not ids:
+        return Response({"error": NO_IDS_ERROR}, status=status.HTTP_400_BAD_REQUEST)
+    if len(ids) > MAX_BULK_IDS:
+        return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
+    update = {"is_archived": archive}
+    if archive:
+        update["pinned"] = False
+    Note.objects.filter(user=request.user, uuid__in=ids, deleted=False).update(**update)
+    return Response({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Folder CRUD + archive/unarchive
+# ---------------------------------------------------------------------------
+
+MAX_CUSTOM_FOLDERS = 20
+
+
+class FolderListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = FolderSerializer
+
+    def get_queryset(self):
+        from django.db.models import Count, Q
+        archived = self.request.query_params.get("archived") == "true"
+        return (
+            Folder.objects.filter(user=self.request.user, is_archived=archived)
+            .annotate(active_note_count=Count("notes", filter=Q(notes__deleted=False, notes__is_archived=False)))
+        )
+
+    @extend_schema(summary="List folders")
+    def list(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return self.api_response(serializer.data)
+
+    @extend_schema(summary="Create folder")
+    def create(self, request, *args, **kwargs):
+        custom_count = Folder.objects.filter(user=request.user, is_default=False).count()
+        if custom_count >= MAX_CUSTOM_FOLDERS:
+            return self.api_response({"error": f"Maximum {MAX_CUSTOM_FOLDERS} custom folders allowed."}, status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+        return self.api_response(serializer.data, status.HTTP_201_CREATED)
+
+
+class FolderDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = FolderSerializer
+    lookup_field = "uuid"
+
+    def get_queryset(self):
+        from django.db.models import Count, Q
+        return (
+            Folder.objects.filter(user=self.request.user)
+            .annotate(active_note_count=Count("notes", filter=Q(notes__deleted=False, notes__is_archived=False)))
+        )
+
+    @extend_schema(summary="Get folder")
+    def retrieve(self, request, *args, **kwargs):
+        return self.api_response(self.get_serializer(self.get_object()).data)
+
+    @extend_schema(summary="Update folder")
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_default:
+            return self.api_response({"error": "Default folders cannot be modified."}, status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return self.api_response(serializer.data)
+
+    @extend_schema(summary="Delete folder", description="Deletes folder and moves its notes to the user's default 'notes' folder.")
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_default:
+            return self.api_response({"error": "Default folders cannot be deleted."}, status.HTTP_400_BAD_REQUEST)
+        default_folder = Folder.objects.filter(user=request.user, name="notes", is_default=True).first()
+        # Move all notes (including archived ones) to default folder and unarchive them
+        instance.notes.filter(deleted=False).update(folder=default_folder, is_archived=False, archived_by_folder=False)
+        instance.delete()
+        return self.api_response({"success": True})
+
+
+@extend_schema(summary="Archive a folder")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def archive_folder(request, uuid):
+    folder = Folder.objects.filter(user=request.user, uuid=uuid, is_default=False).first()
+    if not folder:
+        return Response({"error": "Not found or cannot archive default folders."}, status=status.HTTP_404_NOT_FOUND)
+    folder.is_archived = True
+    folder.save(update_fields=["is_archived"])
+    # Mark notes as archived_by_folder only if not already individually archived
+    folder.notes.filter(deleted=False, is_archived=False).update(
+        is_archived=True, pinned=False, reminder_at=None, archived_by_folder=True
+    )
+    return Response({"success": True})
+
+
+@extend_schema(summary="Unarchive a folder")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def unarchive_folder(request, uuid):
+    folder = Folder.objects.filter(user=request.user, uuid=uuid).first()
+    if not folder:
+        return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    folder.is_archived = False
+    folder.save(update_fields=["is_archived"])
+    # Only restore notes that were archived as part of this folder — not individually archived ones
+    folder.notes.filter(deleted=False, archived_by_folder=True).update(is_archived=False, archived_by_folder=False)
+    return Response({"success": True})
+
+
+@extend_schema(summary="Snooze a reminder")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def snooze_note(request, uuid):
+    note = Note.objects.filter(user=request.user, uuid=uuid, deleted=False).first()
+    if not note:
+        return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    snoozed_until = request.data.get("snoozed_until")
+    if not snoozed_until:
+        return Response({"error": "snoozed_until is required."}, status=status.HTTP_400_BAD_REQUEST)
+    note.snoozed_until = snoozed_until
+    note.save(update_fields=["snoozed_until"])
+    return Response({"success": True})
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def reorder_folders(request):
+    """Accepts [{uuid, order}] list and updates order for custom folders only."""
+    items = request.data.get("folders", [])
+    if not items:
+        return Response({"error": "No folders provided."}, status=status.HTTP_400_BAD_REQUEST)
+    uuids = [item["uuid"] for item in items if "uuid" in item and "order" in item]
+    folders = {str(f.uuid): f for f in Folder.objects.filter(user=request.user, uuid__in=uuids, is_default=False)}
+    for item in items:
+        folder = folders.get(str(item.get("uuid")))
+        if folder:
+            folder.order = item["order"]
+    Folder.objects.bulk_update(list(folders.values()), ["order"])
+    return Response({"success": True})
