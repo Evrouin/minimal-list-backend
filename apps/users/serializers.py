@@ -25,10 +25,11 @@ class UserSerializer(serializers.ModelSerializer):
             "is_active",
             "is_verified",
             "is_superuser",
+            "scheduled_deletion_at",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["uuid", "has_password", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
+        read_only_fields = ["uuid", "has_password", "is_active", "is_verified", "is_superuser", "scheduled_deletion_at", "created_at", "updated_at"]
 
     def get_has_password(self, obj):
         return obj.has_usable_password()
