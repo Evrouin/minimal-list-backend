@@ -9,7 +9,7 @@ import requests as http_requests
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -435,7 +435,6 @@ class FolderListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     serializer_class = FolderSerializer
 
     def get_queryset(self):
-        from django.db.models import Count, Q
         archived = self.request.query_params.get("archived") == "true"
         return (
             Folder.objects.filter(user=self.request.user, is_archived=archived)
@@ -464,7 +463,6 @@ class FolderDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
     lookup_field = "uuid"
 
     def get_queryset(self):
-        from django.db.models import Count, Q
         return (
             Folder.objects.filter(user=self.request.user)
             .annotate(active_note_count=Count("notes", filter=Q(notes__deleted=False, notes__is_archived=False)))
@@ -521,9 +519,9 @@ def unarchive_folder(request, uuid):
         return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
     folder.is_archived = False
     folder.save(update_fields=["is_archived"])
-    # Only restore notes that were archived as part of this folder — not individually archived ones
     folder.notes.filter(deleted=False, archived_by_folder=True).update(is_archived=False, archived_by_folder=False)
-    return Response({"success": True})
+    folder = Folder.objects.annotate(active_note_count=Count("notes", filter=Q(notes__deleted=False, notes__is_archived=False))).get(pk=folder.pk)
+    return Response(FolderSerializer(folder).data)
 
 
 @extend_schema(summary="Snooze a reminder")
