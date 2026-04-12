@@ -66,24 +66,24 @@ Every user has three pre-seeded default folders (notes, tasks, reminders) that p
 Users can create personal folders to organize notes beyond the three defaults. Folders can be renamed, deleted, and reordered to match the user's workflow.
 
 **Functional Acceptance Criteria**
-- [ ] User can create a custom folder with a name
-- [ ] User can rename a custom folder
-- [ ] User can delete a custom folder — notes move to "notes" default (not deleted)
-- [ ] Deletion confirmation shows note count: "move X notes to default folder?"
-- [ ] User can drag-and-drop custom folders to reorder them in the sidebar
-- [ ] Default folders are not draggable
-- [ ] Duplicate folder names are prevented with an inline error
-- [ ] Very long folder names are truncated with ellipsis in the sidebar
-- [ ] Maximum of 20 custom folders per user
-- [ ] Folder limit error shown inline when limit is reached
+- [x] User can create a custom folder with a name
+- [x] User can rename a custom folder
+- [x] User can delete a custom folder — notes move to "notes" default (not deleted)
+- [x] Deletion confirmation shows note count: "move X notes to default folder?"
+- [x] User can drag-and-drop custom folders to reorder them in the sidebar
+- [x] Default folders are not draggable
+- [x] Duplicate folder names are prevented with an inline error
+- [x] Very long folder names are truncated with ellipsis in the sidebar
+- [x] Maximum of 20 custom folders per user
+- [x] Folder limit error shown inline when limit is reached
 
 **Technical Acceptance Criteria**
-- [ ] `GET/POST /api/folders/` endpoints implemented
-- [ ] `PATCH/DELETE /api/folders/:id/` endpoints implemented
-- [ ] `order` field on `Folder` model for drag-to-reorder persistence
-- [ ] `composables/useFolders.ts` handles folder CRUD and active folder state
-- [ ] Folder reorder uses same pattern as note reorder (`bulk-reorder` style endpoint)
-- [ ] Switching folders resets pagination cursor and clears current note list
+- [x] `GET/POST /api/notes/folders/` endpoints implemented
+- [x] `PATCH/DELETE /api/notes/folders/:id/` endpoints implemented
+- [x] `order` field on `Folder` model for drag-to-reorder persistence
+- [x] `composables/useFolders.ts` handles folder CRUD and active folder state
+- [x] `POST /api/notes/folders/reorder/` endpoint implemented
+- [x] Switching folders resets pagination cursor and clears current note list
 
 ---
 
@@ -124,7 +124,7 @@ Users can archive notes and folders they want to keep but not see in their activ
 - [x] Archived notes do not appear in normal folder views or search by default
 - [x] Reminders on archived notes are automatically dismissed on archive
 - [x] Reminders restored on unarchive only if `reminder_at` is still in the future
-- [ ] Archiving a folder with notes shows confirmation with note count
+- [x] Archiving a folder with notes shows confirmation with note count
 - [x] Deleting an archived folder moves its notes to "notes" default (unarchived)
 
 **Technical Acceptance Criteria**
@@ -179,11 +179,18 @@ Users need a clear visual signal when a reminder has passed without being acted 
 - [x] Overdue notes show a red bell indicator on the card
 - [x] Overdue notes appear at the top of the reminders folder view
 - [x] Overdue state is derived — no user action required to trigger it
+- [x] Snoozed notes are not marked overdue while `snoozed_until` is in the future
+- [x] Rescheduling a reminder to a future time clears the overdue state immediately
+- [x] Rescheduling a reminder resets the notification so it re-fires at the new time
 
 **Technical Acceptance Criteria**
-- [x] `is_overdue` computed from `reminder_at < now && !completed` (frontend or API)
+- [x] `is_overdue` computed from `reminder_at < now && !completed && !(snoozed_until > now)` (frontend)
 - [x] `TodoCard.vue` renders overdue indicator
 - [x] Reminders folder sorts by `reminder_at` ascending, overdue group first
+- [x] `firedIds` set in `reminders.client.ts` cleared for a note when its `fireAt` moves to the future
+- [x] Web snooze toast dismissed when reminder is rescheduled to a future time
+- [x] `reminderSections` in `TodoList.vue` excludes snoozed notes from overdue bucket
+- [x] `updateTodo` in `stores/todos.ts` sends `snoozed_until: null` to backend when `reminder_at` changes
 
 ---
 
@@ -200,7 +207,7 @@ The reminders folder provides a timeline view of upcoming and overdue reminders,
 
 **Technical Acceptance Criteria**
 - [x] `TodoList.vue` renders timeline layout when active folder is "reminders"
-- [x] `GET /api/notes/?folder=reminders` returns notes sorted by `reminder_at`
+- [x] `GET /api/notes/?has_reminder=true` returns notes sorted by `reminder_at` (cross-folder, not folder UUID)
 
 ---
 
@@ -210,8 +217,8 @@ The reminders folder provides a timeline view of upcoming and overdue reminders,
 Users can set reminders that repeat on a schedule, so recurring tasks and habits don't require manual re-entry.
 
 **Functional Acceptance Criteria**
-- [ ] Recurrence options: none, daily, weekly, monthly
-- [ ] Recurrence selector available in `ReminderPicker`
+- [x] Recurrence options: none, daily, weekly, monthly
+- [x] Recurrence selector available in `ReminderPicker`
 - [x] On recurrence, `reminder_at` advances to the next occurrence automatically
 - [x] Completing a recurring reminder stops all future recurrences
 - [x] Deleting a note with recurrence cancels all future occurrences
@@ -220,7 +227,7 @@ Users can set reminders that repeat on a schedule, so recurring tasks and habits
 **Technical Acceptance Criteria**
 - [x] `recurrence_rule` field added to `Note` model: `none | daily | weekly | monthly`
 - [x] Backend advances `reminder_at` on each recurrence trigger
-- [ ] `ReminderPicker.vue` updated with recurrence selector UI
+- [x] `ReminderPicker.vue` updated with recurrence selector UI
 - [x] `useReminders.ts` updated for recurrence-aware scheduling
 - [x] Recurrence indicator shown on card when recurrence is set
 
@@ -238,14 +245,23 @@ Users can snooze a reminder when they see the notification but aren't ready to a
 - [x] Multiple snoozes allowed — each replaces the previous
 - [x] Snooze state survives app restart (server-side)
 - [x] If snooze extends past next recurrence, snooze wins
+- [x] Web snooze prompt displayed as a toast matching the undo toast style: `[title · due now   snooze Xm   done]`
+- [x] Clicking the note title in the web snooze toast navigates to the reminders folder and opens a view dialog for the note
+- [x] View dialog for reminder notes includes complete and delete action buttons
+- [x] Closing the view dialog without acting restores the snooze toast
+- [x] Tapping an Android notification (body) navigates to the reminders folder and opens the note view dialog
 
 **Technical Acceptance Criteria**
 - [x] `snoozed_until` nullable datetime field added to `Note` model
 - [x] `POST /api/notes/:id/snooze/` endpoint sets `snoozed_until`
 - [x] `useReminders.ts` polling checks `snoozed_until` before firing
-- [x] Android notification action buttons: "snooze 1hr" and "done" via Capacitor
+- [x] Android notification action buttons: "snooze 15m" and "done" via Capacitor
 - [x] Web: in-app snooze prompt shown after notification fires
 - [x] On app open, local notifications rescheduled based on current `snoozed_until`
+- [x] UUID stored in notification `extra` field for reliable note lookup on Android tap
+- [x] Android notification default tap handled in `localNotificationActionPerformed` — routes to `/?folder=reminders&open=<uuid>`
+- [x] `pages/index.vue` watches `route.query.open` and opens note view dialog once todos are loaded
+- [x] Web snooze toast hidden while note view dialog is open; restored on dialog close without action
 
 ---
 
@@ -279,26 +295,26 @@ The tasks folder provides a focused view for actionable items, with completion a
 Users can reversibly deactivate their own account without losing data. Deactivation is distinct from deletion — it suspends access while preserving all notes and settings. Admins can also deactivate/reactivate accounts, with different recovery flows depending on who initiated it.
 
 **Functional Acceptance Criteria**
-- [ ] User can deactivate their own account from the profile page
-- [ ] Deactivated user cannot log in (web or native)
-- [ ] Self-deactivated user receives an email with a reactivation link (7-day expiry)
-- [ ] Self-deactivated user can reactivate via the email link
-- [ ] Admin-deactivated user sees "contact support" message on login (no self-reactivation)
-- [ ] Admin can reactivate any deactivated user from the admin panel
-- [ ] All active sessions are blacklisted immediately on deactivation
-- [ ] If user has a pending deletion scheduled, deactivation cancels it
-- [ ] Deactivated accounts still block email re-registration
+- [x] User can deactivate their own account from the profile page
+- [x] Deactivated user cannot log in (web or native)
+- [x] Self-deactivated user receives an email with a reactivation link (7-day expiry)
+- [x] Self-deactivated user can reactivate via the email link
+- [x] Admin-deactivated user sees "contact support" message on login (no self-reactivation)
+- [x] Admin can reactivate any deactivated user from the admin panel
+- [x] All active sessions are blacklisted immediately on deactivation
+- [x] If user has a pending deletion scheduled, deactivation cancels it
+- [x] Deactivated accounts still block email re-registration
 
 **Technical Acceptance Criteria**
-- [ ] `deactivation_reason`, `reactivation_token`, `reactivation_token_expires` fields added to `User` model
-- [ ] `POST /api/auth/deactivate/` endpoint — self-service, blacklists sessions, sends email
-- [ ] `POST /api/auth/reactivate/:token/` endpoint — validates token + expiry, restores account
-- [ ] Login view returns context-aware error (self vs admin deactivation)
-- [ ] Admin `PATCH /api/admin/users/:id/` handles session blacklisting + emails on `is_active` toggle
-- [ ] `pages/auth/reactivate/[token].vue` created
-- [ ] Deactivate button added to `pages/auth/profile.vue`
-- [ ] `/auth/reactivate` added to public middleware paths
-- [ ] `deactivateAccount()` added to `useAuthApi.ts`
+- [x] `deactivation_reason`, `reactivation_token`, `reactivation_token_expires` fields added to `User` model
+- [x] `POST /api/auth/deactivate/` endpoint — self-service, blacklists sessions, sends email
+- [x] `POST /api/auth/reactivate/:token/` endpoint — validates token + expiry, restores account
+- [x] Login view returns context-aware error (self vs admin deactivation)
+- [x] Admin `PATCH /api/admin/users/:id/` handles session blacklisting + emails on `is_active` toggle
+- [x] `pages/auth/reactivate/[token].vue` created
+- [x] Deactivate button added to `pages/auth/profile.vue`
+- [x] `/auth/reactivate` added to public middleware paths
+- [x] `deactivateAccount()` added to `useAuthApi.ts`
 
 ---
 
@@ -308,26 +324,26 @@ Users can reversibly deactivate their own account without losing data. Deactivat
 Account deletion is non-immediate — users have a 30-day grace period to cancel. During this window the account is locked but all data is preserved. After 30 days a scheduled job permanently deletes the account and all associated data.
 
 **Functional Acceptance Criteria**
-- [ ] Deleting an account schedules permanent deletion in 30 days (not immediate)
-- [ ] User receives a confirmation email with a cancel/recover link
-- [ ] User can cancel deletion within 30 days via the email link
-- [ ] Locked account cannot log in during the grace period
-- [ ] Login shows specific error: "Account scheduled for deletion. Check email to cancel."
-- [ ] Requesting deletion twice resets the 30-day timer and resends the email
-- [ ] After 30 days, account and all data (notes, files) are permanently deleted
-- [ ] Admin hard-delete bypasses the grace period entirely
-- [ ] Deactivated accounts still block email re-registration during grace period
+- [x] Deleting an account schedules permanent deletion in 30 days (not immediate)
+- [x] User receives a confirmation email with a cancel/recover link
+- [x] User can cancel deletion within 30 days via the email link
+- [x] Locked account cannot log in during the grace period
+- [x] Login shows specific error: "Account scheduled for deletion. Check email to cancel."
+- [x] Requesting deletion twice resets the 30-day timer and resends the email
+- [x] After 30 days, account and all data (notes, files) are permanently deleted
+- [x] Admin hard-delete bypasses the grace period entirely
+- [x] Deactivated accounts still block email re-registration during grace period
 
 **Technical Acceptance Criteria**
-- [ ] `scheduled_deletion_at`, `deletion_recovery_token` fields added to `User` model
-- [ ] `DELETE /api/auth/delete-account/` updated to soft delete — sets `scheduled_deletion_at`, blacklists sessions, sends email
-- [ ] `POST /api/auth/recover-account/:token/` endpoint — clears deletion fields, restores `is_active`
-- [ ] Login view handles `is_pending_deletion` with specific error message
-- [ ] `purge_deleted_accounts` management command deletes expired accounts + files
-- [ ] Cron job scheduled to run `purge_deleted_accounts` daily
-- [ ] `pages/auth/recover-account/[token].vue` created
-- [ ] Delete account confirmation dialog updated to show 30-day grace period info
-- [ ] `/auth/recover-account` added to public middleware paths
+- [x] `scheduled_deletion_at`, `deletion_recovery_token` fields added to `User` model
+- [x] `DELETE /api/auth/delete-account/` updated to soft delete — sets `scheduled_deletion_at`, blacklists sessions, sends email
+- [x] `POST /api/auth/recover-account/:token/` endpoint — clears deletion fields, restores `is_active`
+- [x] Login view handles `is_pending_deletion` with specific error message
+- [x] `purge_deleted_accounts` management command deletes expired accounts + files
+- [ ] Cron job scheduled to run `purge_deleted_accounts` daily on Render
+- [x] `pages/auth/recover-account/[token].vue` created
+- [x] Delete account confirmation dialog updated to show 30-day grace period info
+- [x] `/auth/recover-account` added to public middleware paths
 - [ ] Admin user list shows visual indicator for accounts pending deletion
 
 ---

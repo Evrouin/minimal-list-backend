@@ -1,10 +1,59 @@
-<!DOCTYPE html><html><body>
-<p>Your account has been deactivated.</p>
-{% if reason == "self" %}
-<p>To reactivate your account, click the link below:</p>
-<p><a href="{{ frontend_url }}/auth/reactivate/{{ token }}">Reactivate My Account</a></p>
-<p>This link expires in 7 days.</p>
-{% else %}
-<p>Your account was deactivated by an administrator. Please contact support if you believe this is a mistake.</p>
-{% endif %}
-</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account deactivated</title>
+</head>
+<body style="margin:0;padding:0;background-color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1f2937;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background-color:#374151;border-radius:12px;padding:40px 32px;">
+          <tr>
+            <td style="padding-bottom:24px;text-align:center;">
+              <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">minimal list</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:16px;">
+              <p style="margin:0;font-size:14px;color:#ffffff;font-weight:600;">account deactivated</p>
+            </td>
+          </tr>
+          {% if reason == "self" %}
+          <tr>
+            <td style="padding-bottom:24px;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.5);line-height:1.6;">
+                your account has been deactivated. if you'd like to reactivate it, click the link below. this link expires in 7 days.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:16px;text-align:center;">
+              <a href="{{ frontend_url }}/auth/reactivate/{{ token }}" style="display:inline-block;background-color:#4b5563;color:#ffffff;font-size:13px;font-weight:500;text-decoration:none;padding:10px 28px;border-radius:8px;">
+                reactivate account
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.2);word-break:break-all;">
+                {{ frontend_url }}/auth/reactivate/{{ token }}
+              </p>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td style="padding-bottom:16px;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.5);line-height:1.6;">
+                your account was deactivated by an administrator. please contact support if you believe this is a mistake.
+              </p>
+            </td>
+          </tr>
+          {% endif %}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -96,11 +96,16 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         return super().partial_update(request, *args, **kwargs)
 
-    @extend_schema(summary="Delete user", description="Admin endpoint to permanently delete a user.")
+    @extend_schema(summary="Delete user", description="Admin endpoint to permanently delete a user. Requires superuser password confirmation.")
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()
         if user == request.user:
             return Response({"error": "Cannot delete yourself."}, status=400)
+        password = request.data.get("password")
+        if not password:
+            return Response({"error": "Password is required."}, status=400)
+        if not request.user.check_password(password):
+            return Response({"error": "Incorrect password."}, status=400)
         return super().destroy(request, *args, **kwargs)
 
 
