@@ -70,6 +70,13 @@ class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
             return queryset.filter(is_archived=True, deleted=False, archived_by_folder=False)
         # Default: exclude deleted and archived
         queryset = queryset.filter(deleted=False, is_archived=False)
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(Q(title__icontains=search) | Q(body__icontains=search))
+            folder = self.request.query_params.get("folder")
+            if folder:
+                queryset = queryset.filter(folder__uuid=folder)
+            return queryset
         # Reminders folder: cross-folder view of all notes with reminder_at set
         if self.request.query_params.get("has_reminder") == "true":
             return queryset.filter(reminder_at__isnull=False).order_by("reminder_at")
