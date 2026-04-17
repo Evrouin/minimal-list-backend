@@ -16,7 +16,7 @@ class HmacVerificationMiddleware:
 
     def __call__(self, request):
         key = getattr(settings, "HMAC_SIGNING_KEY", "")
-        if not key:
+        if not key or request.path in ("/", "/health/"):
             return self.get_response(request)
 
         signature = request.headers.get("X-Signature")
