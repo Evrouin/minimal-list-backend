@@ -46,3 +46,4 @@ if AWS_ACCESS_KEY_ID:
     }
 
 HMAC_SIGNING_KEY = config("HMAC_SIGNING_KEY", default="")  # noqa: F405
+ENCRYPTION_KEY = config("ENCRYPTION_KEY", default="")  # noqa: F405
