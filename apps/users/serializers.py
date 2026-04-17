@@ -10,6 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for user details."""
 
     has_password = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -24,15 +25,16 @@ class UserSerializer(serializers.ModelSerializer):
             "has_password",
             "is_active",
             "is_verified",
-            "is_superuser",
+            "role",
             "scheduled_deletion_at",
-            "created_at",
-            "updated_at",
         ]
-        read_only_fields = ["uuid", "has_password", "is_active", "is_verified", "is_superuser", "scheduled_deletion_at", "created_at", "updated_at"]
+        read_only_fields = ["uuid", "has_password", "is_active", "is_verified", "role", "scheduled_deletion_at"]
 
     def get_has_password(self, obj):
         return obj.has_usable_password()
+
+    def get_role(self, obj):
+        return 1 if obj.is_superuser else 0
 
 
 class RegisterSerializer(serializers.ModelSerializer):
