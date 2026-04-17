@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    "config.middleware.HmacVerificationMiddleware",
     "config.middleware.MaintenanceModeMiddleware",
     "config.middleware.RatelimitMiddleware",
     "django.middleware.security.SecurityMiddleware",

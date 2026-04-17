@@ -44,3 +44,5 @@ if AWS_ACCESS_KEY_ID:
     STORAGES["default"] = {  # noqa: F405
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
     }
+
+HMAC_SIGNING_KEY = config("HMAC_SIGNING_KEY", default="")  # noqa: F405

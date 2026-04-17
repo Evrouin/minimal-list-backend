@@ -1,5 +1,47 @@
+import hashlib
+import hmac
+import time
+
 from django.http import JsonResponse
 from django.conf import settings
+
+
+class HmacVerificationMiddleware:
+    """Verify HMAC signature on incoming requests (production only)."""
+
+    TOLERANCE = 300  # 5 minutes
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        key = getattr(settings, "HMAC_SIGNING_KEY", "")
+        if not key:
+            return self.get_response(request)
+
+        signature = request.headers.get("X-Signature")
+        timestamp = request.headers.get("X-Timestamp")
+        if not signature or not timestamp:
+            return JsonResponse({"error": "Missing request signature."}, status=403)
+
+        try:
+            ts = int(timestamp)
+        except ValueError:
+            return JsonResponse({"error": "Invalid timestamp."}, status=403)
+
+        if abs(time.time() - ts) > self.TOLERANCE:
+            return JsonResponse({"error": "Request expired."}, status=403)
+
+        body = request.body.decode() if not (request.content_type or "").startswith("multipart/") else ""
+        path = request.path
+        method = request.method
+        message = f"{timestamp}.{method}.{path}.{body}"
+        expected = hmac.new(key.encode(), message.encode(), hashlib.sha256).hexdigest()
+
+        if not hmac.compare_digest(signature, expected):
+            return JsonResponse({"error": "Invalid request signature."}, status=403)
+
+        return self.get_response(request)
 
 
 class MaintenanceModeMiddleware:
